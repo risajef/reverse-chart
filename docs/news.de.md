@@ -5,8 +5,7 @@
 - `risajef/csv-editor` als Submodule unter `external/csv-editor` hinzugefuegt.
 - Navigation um den CSV Editor erweitert.
 - Projektseite fuer den CSV Editor angelegt.
-- Submodule-Dokumentation und Anleitung fuer kuenftige Projekt-Ergaenzungen
-  angelegt.
+- Submodule-Dokumentation aktualisiert.
 
 ## 2026-07-06
 

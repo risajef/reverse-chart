@@ -10,7 +10,4 @@ nav:
       - Reverse Chart: projects/reverse-chart.de.md
       - CSV Editor: projects/csv-editor.de.md
   - News: news.de.md
-  - Entwicklung:
-      - Submodule: submodules.de.md
-      - Projekt hinzufuegen: adding-project.de.md
-      - Projekt-Vorlage: templates/project.de.md
+  - Submodule: submodules.de.md
