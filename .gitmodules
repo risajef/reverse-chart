@@ -1,0 +1,3 @@
+[submodule "external/csv-editor"]
+	path = external/csv-editor
+	url = https://github.com/risajef/csv-editor.git
