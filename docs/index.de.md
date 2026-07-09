@@ -11,6 +11,9 @@ ein statisches Hosting gestartet werden.
 | [Reverse Chart](projects/reverse-chart.de.md) | Werte aus Diagramm-Bildern ueber Kalibrierpunkte auslesen. | Dieses Repository |
 | [CSV Editor](projects/csv-editor.de.md) | CSV-Dateien importieren, pruefen, filtern, sortieren und exportieren. | Submodule `external/csv-editor` |
 
+Der CSV Editor ist zusaetzlich in der Tool-Navigation unter
+[Tools / CSV Editor](tools/csv-editor.md) verlinkt.
+
 ## Schnellstart
 
 ```bash

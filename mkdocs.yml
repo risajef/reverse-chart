@@ -6,6 +6,8 @@ theme:
   name: readthedocs
 nav:
   - Start: index.de.md
+  - Tools:
+      - CSV Editor: tools/csv-editor.md
   - Projekte:
       - Reverse Chart: projects/reverse-chart.de.md
       - CSV Editor: projects/csv-editor.de.md

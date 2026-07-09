@@ -36,8 +36,10 @@ and README if useful. Keep workflow memory in `.codex/`.
 
 4. Add or update public docs.
 
-   - Add `docs/projects/NAME.de.md`.
-   - Add the project to `mkdocs.yml` under `Projekte`.
+   - Add `docs/projects/NAME.de.md` for the project overview.
+   - If the site uses a `Tools` section, add `docs/tools/NAME.md` too.
+   - Add the project to `mkdocs.yml` under `Projekte` and, when present,
+     under `Tools`.
    - Add a dated entry to `docs/news.de.md`.
    - Add the submodule path, repository, branch, and commit to
      `docs/submodules.de.md`.

@@ -20,6 +20,10 @@ const emptyState = document.querySelector("#emptyState");
 const chartFrame = document.querySelector("#chartFrame");
 const canvas = document.querySelector("#chartCanvas");
 const ctx = canvas.getContext("2d");
+const magnifier = {
+  radiusCss: 74,
+  zoom: 3,
+};
 
 const state = {
   mode: "calibrate",
@@ -341,6 +345,86 @@ function drawHover(point) {
   ctx.restore();
 }
 
+function drawMagnifier(point) {
+  if (!point || !state.image) return;
+
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  const canvasPerCssPixel = (canvas.width / rect.width + canvas.height / rect.height) / 2;
+  const radius = magnifier.radiusCss * canvasPerCssPixel;
+  const sourceRadius = radius / magnifier.zoom;
+  const sourceLeft = point.x - sourceRadius;
+  const sourceTop = point.y - sourceRadius;
+  const clippedLeft = Math.max(0, sourceLeft);
+  const clippedTop = Math.max(0, sourceTop);
+  const clippedRight = Math.min(canvas.width, point.x + sourceRadius);
+  const clippedBottom = Math.min(canvas.height, point.y + sourceRadius);
+  const sourceWidth = clippedRight - clippedLeft;
+  const sourceHeight = clippedBottom - clippedTop;
+
+  if (sourceWidth <= 0 || sourceHeight <= 0) return;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = "white";
+  ctx.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(
+    state.image,
+    clippedLeft,
+    clippedTop,
+    sourceWidth,
+    sourceHeight,
+    point.x - radius + (clippedLeft - sourceLeft) * magnifier.zoom,
+    point.y - radius + (clippedTop - sourceTop) * magnifier.zoom,
+    sourceWidth * magnifier.zoom,
+    sourceHeight * magnifier.zoom,
+  );
+  ctx.restore();
+
+  const lineWidth = 2 * canvasPerCssPixel;
+  const reticleOuter = 18 * canvasPerCssPixel;
+  const reticleGap = 4 * canvasPerCssPixel;
+  const reticleDot = 2.6 * canvasPerCssPixel;
+
+  ctx.save();
+  ctx.shadowColor = "rgba(15, 23, 42, 0.28)";
+  ctx.shadowBlur = 10 * canvasPerCssPixel;
+  ctx.shadowOffsetY = 3 * canvasPerCssPixel;
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 5 * canvasPerCssPixel;
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = getCssVar("--accent");
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "rgba(15, 23, 42, 0.86)";
+  ctx.lineWidth = lineWidth;
+  ctx.beginPath();
+  ctx.moveTo(point.x - reticleOuter, point.y);
+  ctx.lineTo(point.x - reticleGap, point.y);
+  ctx.moveTo(point.x + reticleGap, point.y);
+  ctx.lineTo(point.x + reticleOuter, point.y);
+  ctx.moveTo(point.x, point.y - reticleOuter);
+  ctx.lineTo(point.x, point.y - reticleGap);
+  ctx.moveTo(point.x, point.y + reticleGap);
+  ctx.lineTo(point.x, point.y + reticleOuter);
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(220, 38, 38, 0.9)";
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, reticleDot, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!state.image) return;
@@ -356,6 +440,7 @@ function draw() {
     });
   }
   drawHover(state.hover);
+  drawMagnifier(state.hover);
 }
 
 function getCssVar(name) {
