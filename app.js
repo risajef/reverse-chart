@@ -85,7 +85,15 @@ function loadImageFile(file) {
 
   if (state.imageUrl) URL.revokeObjectURL(state.imageUrl);
   state.imageUrl = URL.createObjectURL(file);
-  loadImage(state.imageUrl, file.name);
+  loadImage(state.imageUrl, file.name || "Pasted image");
+}
+
+function getClipboardImage(clipboardData) {
+  const items = Array.from(clipboardData?.items || []);
+  const imageItem = items.find((item) => item.kind === "file" && item.type.startsWith("image/"));
+  if (imageItem) return imageItem.getAsFile();
+
+  return Array.from(clipboardData?.files || []).find((file) => file.type.startsWith("image/")) || null;
 }
 
 function sizeCanvas() {
@@ -507,6 +515,13 @@ function getCssVar(name) {
 
 imageInput.addEventListener("change", (event) => {
   const [file] = event.target.files;
+  loadImageFile(file);
+});
+
+document.addEventListener("paste", (event) => {
+  const file = getClipboardImage(event.clipboardData);
+  if (!file) return;
+  event.preventDefault();
   loadImageFile(file);
 });
 
