@@ -15,6 +15,7 @@ const measurementList = document.querySelector("#measurementList");
 const measureCount = document.querySelector("#measureCount");
 const clearCalibration = document.querySelector("#clearCalibration");
 const clearMeasurements = document.querySelector("#clearMeasurements");
+const exportAxes = document.querySelector("#exportAxes");
 const exportMeasurements = document.querySelector("#exportMeasurements");
 const emptyState = document.querySelector("#emptyState");
 const chartFrame = document.querySelector("#chartFrame");
@@ -211,7 +212,6 @@ function addCalibration(point) {
 }
 
 function addMeasurement(point) {
-  const values = computeValues(point);
   state.measurements.push({
     id: createPointId(),
     x: point.x,
@@ -362,27 +362,35 @@ function updateLists() {
 
   measurementList.innerHTML = "";
   state.measurements.forEach((point, index) => {
-    const values = computeValues(point);
+    const results = computeResults(point);
     const item = document.createElement("li");
-    item.textContent = `${index + 1}. X ${formatPreciseValue(values.x)}, Y ${formatPreciseValue(values.y)} at pixel ${formatPreciseValue(point.x)}, ${formatPreciseValue(point.y)}`;
+    const display = axis => results[axis].status === "ready" ? formatPreciseValue(results[axis].value) : resultText(results[axis], axis);
+    item.textContent = `${index + 1}. X ${display("x")}, Y ${display("y")} at pixel ${formatPreciseValue(point.x)}, ${formatPreciseValue(point.y)}`;
     measurementList.append(item);
   });
   measureCount.textContent = state.measurements.length;
 }
 
-function createMeasurementsCsv() {
-  const rows = [["nr", "x measured", "y measured", "x pixel", "y pixel"]];
+function createMeasurementsCsv(axes = ["x", "y"]) {
+  if (!axes.length || new Set(axes).size !== axes.length || axes.some(axis => !["x", "y"].includes(axis))) {
+    throw new Error("Choose X, Y, or both axes for export.");
+  }
+  const fits = Object.fromEntries(axes.map(axis => [axis, fitAxis(axis)]));
+  for (const axis of axes) {
+    if (fits[axis].status !== "ready") throw new Error(fitMessage(axis, fits[axis]));
+  }
+  const rows = [["nr", ...axes.map(axis => `${axis} measured`), "x pixel", "y pixel"]];
   state.measurements.forEach((point, index) => {
-    const values = computeValues(point);
-    rows.push([
-      index + 1,
-      formatPreciseValue(values.x),
-      formatPreciseValue(values.y),
-      formatPreciseValue(point.x),
-      formatPreciseValue(point.y),
-    ]);
+    const values = axes.map(axis => {
+      const result = evaluateFit(fits[axis], point[axis]);
+      if (result.status !== "ready") {
+        throw new Error(`Point ${index + 1}: ${axis.toUpperCase()} is outside the numeric range.`);
+      }
+      return formatPreciseValue(result.value);
+    });
+    rows.push([index + 1, ...values, formatPreciseValue(point.x), formatPreciseValue(point.y)]);
   });
-  return rows.map((row) => row.join(",")).join("\n");
+  return rows.map(row => row.join(",")).join("\n");
 }
 
 function exportMeasuredCsv() {
@@ -391,7 +399,14 @@ function exportMeasuredCsv() {
     return;
   }
 
-  const csv = createMeasurementsCsv();
+  let csv;
+  try {
+    const choice = exportAxes.value;
+    csv = createMeasurementsCsv(choice === "x" || choice === "y" ? [choice] : ["x", "y"]);
+  } catch (error) {
+    readout.textContent = `CSV not exported: ${error.message}`;
+    return;
+  }
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

@@ -64,9 +64,16 @@
           </div>
 
           <div id="measureControls" class="stack hidden">
+            <label>CSV axes
+              <select id="exportAxes">
+                <option value="both">X and Y</option>
+                <option value="x">X only</option>
+                <option value="y">Y only</option>
+              </select>
+            </label>
             <button id="exportMeasurements" class="secondary" type="button">Export measured CSV</button>
             <button id="clearMeasurements" class="secondary" type="button">Clear measured points</button>
-            <p class="hint">Hover for live values. Click to pin a measured point.</p>
+            <p class="hint">Hover for live values. Click to capture a pixel point. CSV requires valid calibration for the selected axes.</p>
           </div>
         </section>
 

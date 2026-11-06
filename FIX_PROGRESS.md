@@ -7,7 +7,7 @@ Scope: findings in the 6 November 2026 review. Each fix is committed separately 
 | 1. Blank calibration becomes zero | Done | Native input validity and `valueAsNumber`; regression covers blank, malformed, explicit zero, and log zero rejection. |
 | 2. Unusable fits reported as calibrated | Done | Pure centered regression, explicit fit/evaluation states, finite/range validation, residual diagnostics; linear/reversed/log/degenerate/extreme tests pass. |
 | 3. Stale image completion overwrites session | Done | Load generations guard commits; candidate URLs release exactly once; controlled B→A completion and failed replacement tests pass. Basic decode-error handling added here; resource policy follows in fix 7. |
-| 4. Invalid/incomplete CSV output | Pending | |
+| 4. Invalid/incomplete CSV output | Done | Explicit X/Y/both selection; export rejects missing fits and invalid evaluated values; list identifies uncalibrated points. CSV regression cases pass. |
 | 5. Recalibration semantics and provenance | Pending | |
 | 6. Point recovery and undo | Pending | |
 | 7. Image errors and resource limits | Pending | |
