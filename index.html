@@ -22,6 +22,12 @@
             <span>Upload chart image</span>
           </label>
           <button id="loadExample" class="secondary" type="button">Load example</button>
+          <button id="saveProject" class="secondary" type="button">Save project</button>
+          <label class="file-picker">
+            <input id="openProject" type="file" accept=".json,application/json">
+            <span>Open project</span>
+          </label>
+          <p class="hint">Projects include the image, scales, calibration, and captured pixel points.</p>
         </section>
 
         <section class="panel">
@@ -73,7 +79,7 @@
             </label>
             <button id="exportMeasurements" class="secondary" type="button">Export measured CSV</button>
             <button id="clearMeasurements" class="secondary" type="button">Clear measured points</button>
-            <p class="hint">Hover for live values. Click to capture a pixel point. CSV requires valid calibration for the selected axes.</p>
+            <p class="hint">Hover for live values. Click to capture a pixel point. CSV requires valid calibration for the selected axes. Captured points are recalculated whenever calibration or scales change; save a project to preserve the calculation.</p>
           </div>
         </section>
 

@@ -36,6 +36,7 @@ const magnifier = {
 };
 
 const state = {
+  calibrationRevision: 0,
   mode: "calibrate",
   image: null,
   imageName: "",
@@ -61,7 +62,7 @@ function setMode(mode) {
 let imageLoadGeneration = 0;
 let cancelPendingImage = null;
 
-function loadImage(src, name, ownedUrl = false) {
+function loadImage(src, name, ownedUrl = false, project = null) {
   const generation = ++imageLoadGeneration;
   if (cancelPendingImage) cancelPendingImage();
   const image = new Image();
@@ -81,10 +82,20 @@ function loadImage(src, name, ownedUrl = false) {
     release();
     if (generation !== imageLoadGeneration) return;
     cancelPendingImage = null;
+    if (project && (image.width !== project.image.width || image.height !== project.image.height)) {
+      readout.textContent = "Project image dimensions do not match its metadata.";
+      return;
+    }
     state.image = image;
     state.imageName = name;
-    state.calibration = [];
-    state.measurements = [];
+    state.calibration = project ? project.calibration : [];
+    state.measurements = project ? project.measurements : [];
+    if (project) {
+      state.scales = { ...project.scales };
+      state.calibrationRevision = project.calibrationRevision;
+    } else state.calibrationRevision++;
+    xScaleInput.value = state.scales.x;
+    yScaleInput.value = state.scales.y;
     state.hover = null;
     sizeCanvas();
     emptyState.style.display = "none";
@@ -198,6 +209,7 @@ function addCalibration(point) {
     return;
   }
 
+  state.calibrationRevision++;
   state.calibration.push({
     id: createPointId(),
     axis,
@@ -347,7 +359,8 @@ function updateReadout(point) {
 }
 
 function updateFitStatus() {
-  fitStatus.textContent = ["x", "y"].map(axis => fitMessage(axis, fitAxis(axis))).join(". ") + ".";
+  fitStatus.textContent = ["x", "y"].map(axis => fitMessage(axis, fitAxis(axis))).join(". ") +
+    `. Calibration revision ${state.calibrationRevision}. All captured points use the current calibration.`;
 }
 
 function updateLists() {
@@ -415,6 +428,90 @@ function exportMeasuredCsv() {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
+
+// Project files preserve source pixels and calibration, not frozen derived values.
+function createProject(imageData) {
+  if (!state.image) throw new Error("Load a chart before saving a project.");
+  if (!imageData) {
+    const buffer = document.createElement("canvas");
+    buffer.width = state.image.width;
+    buffer.height = state.image.height;
+    buffer.getContext("2d").drawImage(state.image, 0, 0);
+    imageData = buffer.toDataURL("image/png");
+  }
+  return {
+    schemaVersion: 1,
+    image: { name: state.imageName, width: state.image.width, height: state.image.height, data: imageData },
+    scales: { ...state.scales },
+    calibrationRevision: state.calibrationRevision,
+    calibration: state.calibration.map(point => ({ ...point })),
+    measurements: state.measurements.map(point => ({ ...point })),
+  };
+}
+
+function validateProject(project) {
+  const fail = () => { throw new Error("Invalid or unsupported Reverse Chart project."); };
+  if (!project || project.schemaVersion !== 1 || !project.image || !project.scales) fail();
+  const image = project.image;
+  if (typeof image.name !== "string" || image.name.length > 4096 ||
+      !Number.isSafeInteger(image.width) || image.width < 1 ||
+      !Number.isSafeInteger(image.height) || image.height < 1 ||
+      typeof image.data !== "string" || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(image.data)) fail();
+  if (![project.scales.x, project.scales.y].every(scale => ["linear", "log"].includes(scale)) ||
+      !Number.isSafeInteger(project.calibrationRevision) || project.calibrationRevision < 0) fail();
+  const ids = new Set();
+  const checkPoints = (points, calibration) => {
+    if (!Array.isArray(points) || points.length > 10000) fail();
+    return points.map(point => {
+      if (!point || typeof point.id !== "string" || !point.id || point.id.length > 200 || ids.has(point.id) ||
+          !Number.isFinite(point.x) || point.x < 0 || point.x > image.width ||
+          !Number.isFinite(point.y) || point.y < 0 || point.y > image.height) fail();
+      ids.add(point.id);
+      if (calibration && (!["x", "y"].includes(point.axis) || !Number.isFinite(point.value))) fail();
+      return calibration ? { id: point.id, x: point.x, y: point.y, axis: point.axis, value: point.value }
+        : { id: point.id, x: point.x, y: point.y };
+    });
+  };
+  return {
+    schemaVersion: 1, image: { name: image.name, width: image.width, height: image.height, data: image.data },
+    scales: { x: project.scales.x, y: project.scales.y }, calibrationRevision: project.calibrationRevision,
+    calibration: checkPoints(project.calibration, true), measurements: checkPoints(project.measurements, false),
+  };
+}
+
+function downloadFile(contents, type, filename) {
+  const url = URL.createObjectURL(new Blob([contents], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+document.querySelector("#saveProject").addEventListener("click", () => {
+  try {
+    downloadFile(JSON.stringify(createProject(), null, 2), "application/json", "reverse-chart-project.json");
+  } catch (error) { readout.textContent = error.message; }
+});
+
+let projectReadGeneration = 0;
+document.querySelector("#openProject").addEventListener("change", async event => {
+  const file = event.target.files[0];
+  event.target.value = "";
+  if (!file) return;
+  const generation = ++projectReadGeneration;
+  const imageGeneration = imageLoadGeneration;
+  try {
+    if (file.size > 64 * 1024 * 1024) throw new Error("Project exceeds the 64 MiB file limit.");
+    const project = validateProject(JSON.parse(await file.text()));
+    if (generation !== projectReadGeneration || imageGeneration !== imageLoadGeneration) return;
+    loadImage(project.image.data, project.image.name, false, project);
+  } catch (error) {
+    if (generation === projectReadGeneration && imageGeneration === imageLoadGeneration) {
+      readout.textContent = `Project not opened: ${error.message}`;
+    }
+  }
+});
 
 function drawMarker(point, color, label) {
   ctx.save();
@@ -602,6 +699,7 @@ calibrateMode.addEventListener("click", () => setMode("calibrate"));
 measureMode.addEventListener("click", () => setMode("measure"));
 
 xScaleInput.addEventListener("change", () => {
+  state.calibrationRevision++;
   state.scales.x = xScaleInput.value;
   updateLists();
   updateFitStatus();
@@ -610,6 +708,7 @@ xScaleInput.addEventListener("change", () => {
 });
 
 yScaleInput.addEventListener("change", () => {
+  state.calibrationRevision++;
   state.scales.y = yScaleInput.value;
   updateLists();
   updateFitStatus();
@@ -671,6 +770,7 @@ canvas.addEventListener("keydown", (event) => {
 });
 
 clearCalibration.addEventListener("click", () => {
+  state.calibrationRevision++;
   state.calibration = [];
   updateLists();
   updateFitStatus();
