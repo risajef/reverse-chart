@@ -38,7 +38,6 @@ const state = {
   mode: "calibrate",
   image: null,
   imageName: "",
-  imageUrl: "",
   scales: {
     x: "linear",
     y: "linear",
@@ -58,9 +57,29 @@ function setMode(mode) {
   draw();
 }
 
-function loadImage(src, name) {
+let imageLoadGeneration = 0;
+let cancelPendingImage = null;
+
+function loadImage(src, name, ownedUrl = false) {
+  const generation = ++imageLoadGeneration;
+  if (cancelPendingImage) cancelPendingImage();
   const image = new Image();
+  let released = false;
+  const release = () => {
+    if (ownedUrl && !released) URL.revokeObjectURL(src);
+    released = true;
+  };
+  cancelPendingImage = release;
+  image.onerror = () => {
+    release();
+    if (generation !== imageLoadGeneration) return;
+    cancelPendingImage = null;
+    readout.textContent = "Could not load this image. The current chart is unchanged.";
+  };
   image.onload = () => {
+    release();
+    if (generation !== imageLoadGeneration) return;
+    cancelPendingImage = null;
     state.image = image;
     state.imageName = name;
     state.calibration = [];
@@ -83,9 +102,7 @@ function loadImageFile(file) {
     return;
   }
 
-  if (state.imageUrl) URL.revokeObjectURL(state.imageUrl);
-  state.imageUrl = URL.createObjectURL(file);
-  loadImage(state.imageUrl, file.name || "Pasted image");
+  loadImage(URL.createObjectURL(file), file.name || "Pasted image", true);
 }
 
 function getClipboardImage(clipboardData) {
