@@ -16,10 +16,42 @@ Scope: findings in the 6 November 2026 review. Each fix is committed separately 
 | Accessibility | Done | Mode pressed states, polite status regions, visible keyboard/paste instructions and canvas description/fallback; visible upload/project-input focus. Semantic mode test passes; browser checks follow below. |
 | Small-number display precision | Done | Significant-digit formatting with scientific notation for very small/large values; accuracy guidance; tiny/subnormal/zero tests pass. |
 | Standalone documentation/theme | Done | README now documents this repository and its workflows; removed parent-owned stylesheet request so standalone serving needs only tracked runtime files. |
-| Regression checks and browser smoke | In progress | Dependency-free Node test harness added with fix 1. |
+| Regression checks and browser smoke | Done | 20 regression cases across 10 files; real browser smoke, standalone npm scripts/lockfile and CI workflow added. All local checks pass. |
 
 Run checks with `node --test tests/*.test.cjs` and `node --check app.js`.
 
 ## Project round-trip follow-up
 
 Save now enforces the same schema and 64 MiB limit as Open. Session point limits match the import limits, and temporary PNG-encoding canvas backing stores are released. Regression checks cover save validity/size failure and capture limits. This follow-up is committed separately from the original provenance fix.
+
+## Fix commits
+
+| Finding | Commit |
+| --- | --- |
+| Blank/invalid calibration | `269ce1b` |
+| Fit validity and diagnostics | `7547c35` |
+| Image completion ordering | `e25d1b4` |
+| Validated selected-axis CSV | `1618111` |
+| Project provenance and recalculation semantics | `505f581` |
+| Individual removal and undo | `b42ceff` |
+| Image errors/resource policy | `314cbec` |
+| Fit caching and cursor scheduling | `30adb4f` |
+| Marker visibility | `06b3a6e` |
+| Accessibility | `1cb967c` |
+| Small-number formatting | `7a1862d` |
+| Standalone documentation/theme | `ae574f2` |
+| Project save/import limit consistency | `668bd62` |
+
+The final regression/CI commit contains this ledger and the standalone test tooling; use `git log --oneline` for its ID.
+
+## Final local verification
+
+- `npm test`: all 10 test files passed (20 individual regression cases).
+- `npm run check`: passed.
+- `npm run test:browser`: passed load → blank rejection → calibrate → measure → CSV download → PNG-backed project save/open → remove/undo → corrupt image rejection → keyboard capture; checked a 390px mobile viewport and no page/HTTP errors.
+- Browser run used Puppeteer 25.16.0 with the environment's installed Chrome 131 via `PUPPETEER_EXECUTABLE_PATH`. No screen reader or large-image performance benchmark was run. CI configuration is committed but has not run on GitHub; its matching downloaded browser was not exercised locally.
+- `npm ci --ignore-scripts --offline --cache /tmp/reverse-chart-npm-cache`: lockfile install passed. Dependency audit reported zero known vulnerabilities. Runtime remains dependency-free; Puppeteer is development-only.
+- `git diff --check`: passed.
+- Changes and commits are confined to this subrepo. The parent Git index has no staged reverse-chart pointer change. No parent build, publication, push, or deployment was performed. The parent working tree will naturally display reverse-chart as modified because its checked-out commit advanced.
+
+All reviewed findings are addressed. Remaining limitations are documented: ordinary axis-aligned charts only, explicit extrapolation interpretation, bounded session-local undo, resource limits, and manual project saving rather than automatic persistence.

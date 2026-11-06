@@ -53,3 +53,14 @@ node --check app.js
 ```
 
 The test harness evaluates the actual application with minimal browser stubs; it does not replace real browser verification. See `FIX_PROGRESS.md` for the review findings and their implementation status.
+
+For the tracked browser smoke test, use Node.js 22.12 or newer:
+
+```sh
+npm ci
+npm run check
+npm test
+npm run test:browser
+```
+
+Puppeteer is a development-only dependency and installs its matching Chrome during `npm ci`. If you use an existing Chrome, set `PUPPETEER_SKIP_DOWNLOAD=true` during installation and `PUPPETEER_EXECUTABLE_PATH` when running the smoke test. For a container/CI environment that cannot use Chrome's sandbox, set `CHROME_NO_SANDBOX=1` for this local test. The smoke test serves only this repository on loopback, checks the real controls/downloads, and removes its temporary files afterward. GitHub Actions runs these checks on pushes and pull requests; it does not publish the app.
