@@ -49,6 +49,64 @@ const state = {
   hover: null,
 };
 
+const undoHistory = [];
+
+function checkpoint() {
+  undoHistory.push({
+    image: state.image, imageName: state.imageName, scales: { ...state.scales },
+    calibration: state.calibration.map(point => ({ ...point })),
+    measurements: state.measurements.map(point => ({ ...point })),
+  });
+  // Snapshots share decoded images, but retain at most three distinct images.
+  while (undoHistory.length > 30 || new Set(undoHistory.map(entry => entry.image).filter(Boolean)).size > 3) {
+    undoHistory.shift();
+  }
+  document.querySelector("#undo").disabled = false;
+}
+
+function refreshSession() {
+  xScaleInput.value = state.scales.x;
+  yScaleInput.value = state.scales.y;
+  emptyState.style.display = state.image ? "none" : "";
+  sizeCanvas();
+  updateLists();
+  updateFitStatus();
+  updateReadout(state.hover);
+  updateFakeCursor(state.hover);
+  draw();
+}
+
+function undo() {
+  if (!undoHistory.length) return;
+  imageLoadGeneration++;
+  projectReadGeneration++;
+  if (cancelPendingImage) cancelPendingImage();
+  cancelPendingImage = null;
+  Object.assign(state, undoHistory.pop());
+  state.calibrationRevision++;
+  state.hover = null;
+  refreshSession();
+  document.querySelector("#undo").disabled = !undoHistory.length;
+}
+
+function removePoint(collection, id) {
+  if (!state[collection].some(point => point.id === id)) return;
+  checkpoint();
+  state[collection] = state[collection].filter(point => point.id !== id);
+  if (collection === "calibration") state.calibrationRevision++;
+  refreshSession();
+}
+
+function appendRemoveButton(item, collection, point, index) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "remove-point";
+  button.textContent = "Remove";
+  button.setAttribute("aria-label", `Remove ${collection} point ${index + 1}`);
+  button.addEventListener("click", () => removePoint(collection, point.id));
+  item.append(button);
+}
+
 function setMode(mode) {
   state.mode = mode;
   calibrateMode.classList.toggle("active", mode === "calibrate");
@@ -86,6 +144,7 @@ function loadImage(src, name, ownedUrl = false, project = null) {
       readout.textContent = "Project image dimensions do not match its metadata.";
       return;
     }
+    checkpoint();
     state.image = image;
     state.imageName = name;
     state.calibration = project ? project.calibration : [];
@@ -209,6 +268,7 @@ function addCalibration(point) {
     return;
   }
 
+  checkpoint();
   state.calibrationRevision++;
   state.calibration.push({
     id: createPointId(),
@@ -224,6 +284,7 @@ function addCalibration(point) {
 }
 
 function addMeasurement(point) {
+  checkpoint();
   state.measurements.push({
     id: createPointId(),
     x: point.x,
@@ -365,11 +426,12 @@ function updateFitStatus() {
 
 function updateLists() {
   calibrationList.innerHTML = "";
-  state.calibration.forEach((point) => {
+  state.calibration.forEach((point, index) => {
     const item = document.createElement("li");
     const isInvalidLogPoint = state.scales[point.axis] === "log" && point.value <= 0;
     const suffix = isInvalidLogPoint ? " (ignored for log scale)" : "";
     item.textContent = `${point.axis.toUpperCase()} = ${formatValue(point.value, point.axis)} at pixel ${Math.round(point.x)}, ${Math.round(point.y)}${suffix}`;
+    appendRemoveButton(item, "calibration", point, index);
     calibrationList.append(item);
   });
 
@@ -379,6 +441,7 @@ function updateLists() {
     const item = document.createElement("li");
     const display = axis => results[axis].status === "ready" ? formatPreciseValue(results[axis].value) : resultText(results[axis], axis);
     item.textContent = `${index + 1}. X ${display("x")}, Y ${display("y")} at pixel ${formatPreciseValue(point.x)}, ${formatPreciseValue(point.y)}`;
+    appendRemoveButton(item, "measurements", point, index);
     measurementList.append(item);
   });
   measureCount.textContent = state.measurements.length;
@@ -665,7 +728,9 @@ imageInput.addEventListener("change", (event) => {
   loadImageFile(file);
 });
 
-document.addEventListener("paste", (event) => {
+chartFrame.addEventListener("paste", (event) => {
+  const target = event.target;
+  if (target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName)) return;
   const file = getClipboardImage(event.clipboardData);
   if (!file) return;
   event.preventDefault();
@@ -699,6 +764,7 @@ calibrateMode.addEventListener("click", () => setMode("calibrate"));
 measureMode.addEventListener("click", () => setMode("measure"));
 
 xScaleInput.addEventListener("change", () => {
+  checkpoint();
   state.calibrationRevision++;
   state.scales.x = xScaleInput.value;
   updateLists();
@@ -708,6 +774,7 @@ xScaleInput.addEventListener("change", () => {
 });
 
 yScaleInput.addEventListener("change", () => {
+  checkpoint();
   state.calibrationRevision++;
   state.scales.y = yScaleInput.value;
   updateLists();
@@ -770,6 +837,8 @@ canvas.addEventListener("keydown", (event) => {
 });
 
 clearCalibration.addEventListener("click", () => {
+  if (!state.calibration.length) return;
+  checkpoint();
   state.calibrationRevision++;
   state.calibration = [];
   updateLists();
@@ -779,11 +848,14 @@ clearCalibration.addEventListener("click", () => {
 });
 
 clearMeasurements.addEventListener("click", () => {
+  if (!state.measurements.length) return;
+  checkpoint();
   state.measurements = [];
   updateLists();
   draw();
 });
 
+document.querySelector("#undo").addEventListener("click", undo);
 exportMeasurements.addEventListener("click", exportMeasuredCsv);
 
 window.addEventListener("resize", () => {

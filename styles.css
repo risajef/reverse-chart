@@ -349,3 +349,6 @@ canvas:focus-visible {
     min-height: 60vh;
   }
 }
+
+.remove-point { margin-left: 0.5rem; }
+button:disabled { opacity: 0.55; cursor: default; }
