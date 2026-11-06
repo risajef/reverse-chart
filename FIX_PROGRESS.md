@@ -15,7 +15,7 @@ Scope: findings in the 6 November 2026 review. Each fix is committed separately 
 | Measurement marker visibility | Done | Captured markers render during hover; magnifier covers only its own circular region. Marker-render regression passes. |
 | Accessibility | Done | Mode pressed states, polite status regions, visible keyboard/paste instructions and canvas description/fallback; visible upload/project-input focus. Semantic mode test passes; browser checks follow below. |
 | Small-number display precision | Done | Significant-digit formatting with scientific notation for very small/large values; accuracy guidance; tiny/subnormal/zero tests pass. |
-| Standalone documentation/theme | Pending | |
+| Standalone documentation/theme | Done | README now documents this repository and its workflows; removed parent-owned stylesheet request so standalone serving needs only tracked runtime files. |
 | Regression checks and browser smoke | In progress | Dependency-free Node test harness added with fix 1. |
 
 Run checks with `node --test tests/*.test.cjs` and `node --check app.js`.
