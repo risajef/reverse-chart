@@ -432,19 +432,14 @@ function resultText(result, axis) {
   return "axis calibration required";
 }
 
-function formatPlainNumber(value, maximumFractionDigits = 12) {
+function formatValue(value) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "not calibrated";
+  const abs = Math.abs(value);
   return new Intl.NumberFormat(undefined, {
     useGrouping: false,
-    maximumFractionDigits,
+    maximumSignificantDigits: 12,
+    notation: abs > 0 && (abs < 1e-6 || abs >= 1e12) ? "scientific" : "standard",
   }).format(value);
-}
-
-function formatValue(value, axis = null) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "not calibrated";
-  if (axis && state.scales[axis] === "linear") return formatPlainNumber(value);
-  const abs = Math.abs(value);
-  if (abs >= 1000 || (abs > 0 && abs < 0.01)) return value.toExponential(3);
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(value);
 }
 
 function formatPreciseValue(value) {
