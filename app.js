@@ -783,11 +783,9 @@ function draw() {
     const color = point.axis === "x" ? palette["--x"] : palette["--y"];
     drawMarker(point, color, `${point.axis.toUpperCase()} ${formatValue(point.value, point.axis)}`);
   });
-  if (!state.hover) {
-    state.measurements.forEach((point, index) => {
-      drawMarker(point, palette["--measure"], `${index + 1}`);
-    });
-  }
+  state.measurements.forEach((point, index) => {
+    drawMarker(point, palette["--measure"], `${index + 1}`);
+  });
   drawHover(state.hover);
   drawMagnifier(state.hover, palette["--accent"]);
 }
