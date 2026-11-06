@@ -283,11 +283,17 @@ function updateFakeCursor(point) {
   fakeCursor.classList.remove("hidden");
 }
 
+let cursorFramePending = false;
 function setCursorPoint(point) {
   state.hover = point ? clampPoint(point) : null;
-  updateReadout(state.hover);
-  updateFakeCursor(state.hover);
-  draw();
+  if (cursorFramePending) return;
+  cursorFramePending = true;
+  requestAnimationFrame(() => {
+    cursorFramePending = false;
+    updateReadout(state.hover);
+    updateFakeCursor(state.hover);
+    draw();
+  });
 }
 
 function commitCursorPoint() {
@@ -384,8 +390,16 @@ function evaluateFit(fit, pixel) {
   return { status: "ready", value };
 }
 
+let fitCache = null;
 function fitAxis(axis) {
-  return fitCalibration(state.calibration, axis, state.scales[axis]);
+  if (!fitCache || fitCache.revision !== state.calibrationRevision ||
+      fitCache.points !== state.calibration || fitCache.count !== state.calibration.length || fitCache.xScale !== state.scales.x || fitCache.yScale !== state.scales.y) {
+    fitCache = { revision: state.calibrationRevision, points: state.calibration, count: state.calibration.length,
+      xScale: state.scales.x, yScale: state.scales.y,
+      x: fitCalibration(state.calibration, "x", state.scales.x),
+      y: fitCalibration(state.calibration, "y", state.scales.y) };
+  }
+  return fitCache[axis];
 }
 
 function computeResults(point) {
@@ -467,27 +481,40 @@ function updateFitStatus() {
     `. Calibration revision ${state.calibrationRevision}. All captured points use the current calibration.`;
 }
 
+let renderedCalibration = null;
+let renderedMeasurements = null;
 function updateLists() {
-  calibrationList.innerHTML = "";
-  state.calibration.forEach((point, index) => {
-    const item = document.createElement("li");
-    const isInvalidLogPoint = state.scales[point.axis] === "log" && point.value <= 0;
-    const suffix = isInvalidLogPoint ? " (ignored for log scale)" : "";
-    item.textContent = `${point.axis.toUpperCase()} = ${formatValue(point.value, point.axis)} at pixel ${Math.round(point.x)}, ${Math.round(point.y)}${suffix}`;
-    appendRemoveButton(item, "calibration", point, index);
-    calibrationList.append(item);
-  });
-
-  measurementList.innerHTML = "";
-  state.measurements.forEach((point, index) => {
-    const results = computeResults(point);
-    const item = document.createElement("li");
-    const display = axis => results[axis].status === "ready" ? formatPreciseValue(results[axis].value) : resultText(results[axis], axis);
-    item.textContent = `${index + 1}. X ${display("x")}, Y ${display("y")} at pixel ${formatPreciseValue(point.x)}, ${formatPreciseValue(point.y)}`;
-    appendRemoveButton(item, "measurements", point, index);
-    measurementList.append(item);
-  });
-  measureCount.textContent = state.measurements.length;
+  const xFit = fitAxis("x");
+  const yFit = fitAxis("y");
+  if (!renderedCalibration || renderedCalibration.points !== state.calibration ||
+      renderedCalibration.xFit !== xFit || renderedCalibration.yFit !== yFit) {
+    calibrationList.innerHTML = "";
+    state.calibration.forEach((point, index) => {
+      const item = document.createElement("li");
+      const isInvalidLogPoint = state.scales[point.axis] === "log" && point.value <= 0;
+      const suffix = isInvalidLogPoint ? " (ignored for log scale)" : "";
+      item.textContent = `${point.axis.toUpperCase()} = ${formatValue(point.value, point.axis)} at pixel ${Math.round(point.x)}, ${Math.round(point.y)}${suffix}`;
+      appendRemoveButton(item, "calibration", point, index);
+      calibrationList.append(item);
+    });
+  
+    renderedCalibration = { points: state.calibration, xFit, yFit };
+  }
+  if (!renderedMeasurements || renderedMeasurements.points !== state.measurements ||
+      renderedMeasurements.count !== state.measurements.length ||
+      renderedMeasurements.xFit !== xFit || renderedMeasurements.yFit !== yFit) {
+    measurementList.innerHTML = "";
+    state.measurements.forEach((point, index) => {
+      const results = computeResults(point);
+      const item = document.createElement("li");
+      const display = axis => results[axis].status === "ready" ? formatPreciseValue(results[axis].value) : resultText(results[axis], axis);
+      item.textContent = `${index + 1}. X ${display("x")}, Y ${display("y")} at pixel ${formatPreciseValue(point.x)}, ${formatPreciseValue(point.y)}`;
+      appendRemoveButton(item, "measurements", point, index);
+      measurementList.append(item);
+    });
+    measureCount.textContent = state.measurements.length;
+    renderedMeasurements = { points: state.measurements, count: state.measurements.length, xFit, yFit };
+  }
 }
 
 function createMeasurementsCsv(axes = ["x", "y"]) {
@@ -665,7 +692,7 @@ function drawHover(point) {
   ctx.restore();
 }
 
-function drawMagnifier(point) {
+function drawMagnifier(point, accent) {
   if (!point || !state.image) return;
 
   const rect = canvas.getBoundingClientRect();
@@ -720,7 +747,7 @@ function drawMagnifier(point) {
   ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
   ctx.stroke();
   ctx.shadowColor = "transparent";
-  ctx.strokeStyle = getCssVar("--accent");
+  ctx.strokeStyle = accent;
   ctx.lineWidth = lineWidth;
   ctx.stroke();
 
@@ -749,23 +776,22 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!state.image) return;
 
+  const styles = getComputedStyle(document.documentElement);
+  const palette = Object.fromEntries(["--x", "--y", "--measure", "--accent"].map(name => [name, styles.getPropertyValue(name).trim()]));
   ctx.drawImage(state.image, 0, 0);
   state.calibration.forEach((point) => {
-    const color = point.axis === "x" ? getCssVar("--x") : getCssVar("--y");
+    const color = point.axis === "x" ? palette["--x"] : palette["--y"];
     drawMarker(point, color, `${point.axis.toUpperCase()} ${formatValue(point.value, point.axis)}`);
   });
   if (!state.hover) {
     state.measurements.forEach((point, index) => {
-      drawMarker(point, getCssVar("--measure"), `${index + 1}`);
+      drawMarker(point, palette["--measure"], `${index + 1}`);
     });
   }
   drawHover(state.hover);
-  drawMagnifier(state.hover);
+  drawMagnifier(state.hover, palette["--accent"]);
 }
 
-function getCssVar(name) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
 
 imageInput.addEventListener("change", (event) => {
   const [file] = event.target.files;
