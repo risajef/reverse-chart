@@ -31,7 +31,7 @@ Focus the chart and use arrows to move one source pixel, Shift + arrow for 10 pi
 ## Limits and interpretation
 
 - Image files: at most 32 MiB, 8192 pixels per side, and 16,777,216 total pixels. Oversized images are rejected rather than silently downsampled. The browser still needs to decode the selected file before its dimensions are known.
-- Project files: at most 64 MiB; at most 10,000 calibration points and 10,000 measurement points on import.
+- Project files: at most 64 MiB; at most 10,000 calibration points and 10,000 measurement points per session. Save validates the same schema and size limits as Open; if the embedded PNG makes a project too large, reduce the chart size before saving.
 - Image loads commit only after decode, dimension validation, and a canvas backing-store check. A failed load keeps the current chart. Late completions from obsolete requests cannot replace the current session.
 - Numeric overflow/underflow and degenerate fits are reported. CSV refuses invalid selected-axis values rather than inserting empty cells. Values outside the calibrated tick interval are extrapolated; check that this makes sense for your chart.
 - Display/export precision is not measurement accuracy. Tick placement, pixel resolution, source-image quality, and calibration consistency determine accuracy.

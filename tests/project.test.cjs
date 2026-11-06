@@ -27,3 +27,22 @@ test('project validation rejects unknown schema, external images, invalid points
     assert.throws(() => run(`{const p=structuredClone(saved);${mutation};validateProject(p)}`), /Invalid or unsupported/);
   }
 });
+
+test('project save applies import validation and byte limits', () => {
+  const {run} = app();
+  run(`state.image={width:100,height:100};var saved=createProject('data:image/png;base64,AAAA');`);
+  assert.equal(run('validateProject(JSON.parse(serializeProject(saved))).schemaVersion'), 1);
+  assert.throws(() => run(`serializeProject({...saved,schemaVersion:2})`), /Invalid or unsupported/);
+  run(`Blob=class {size=64*1024*1024+1}`);
+  assert.throws(() => run('serializeProject(saved)'), /64 MiB/);
+});
+
+test('capture cannot exceed project point limits', () => {
+  const {run} = app();
+  run(`state.calibration=Array.from({length:MAX_POINTS},()=>({}));
+    state.measurements=Array.from({length:MAX_POINTS},()=>({}));
+    addCalibration({x:1,y:1});addMeasurement({x:1,y:1});`);
+  assert.equal(run('state.calibration.length'), 10000);
+  assert.equal(run('state.measurements.length'), 10000);
+  assert.equal(run('undoHistory.length'), 0);
+});

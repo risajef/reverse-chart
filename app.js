@@ -124,6 +124,8 @@ const imageStatus = document.querySelector("#imageStatus");
 const MAX_IMAGE_PIXELS = 16 * 1024 * 1024;
 const MAX_IMAGE_SIDE = 8192;
 const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
+const MAX_PROJECT_BYTES = 64 * 1024 * 1024;
+const MAX_POINTS = 10000;
 
 function validImageDimensions(width, height) {
   return Number.isSafeInteger(width) && Number.isSafeInteger(height) && width > 0 && height > 0 &&
@@ -155,7 +157,7 @@ let cancelPendingImage = null;
 function loadImage(src, name, ownedUrl = false, project = null) {
   const generation = ++imageLoadGeneration;
   if (cancelPendingImage) cancelPendingImage();
-  imageStatus.textContent = `Loading ${name}…` ;
+  imageStatus.textContent = `Loading ${name}…`;
   const image = new Image();
   let released = false;
   const release = () => {
@@ -305,6 +307,10 @@ function commitCursorPoint() {
 }
 
 function addCalibration(point) {
+  if (state.calibration.length >= MAX_POINTS) {
+    readout.textContent = "Calibration point limit reached (10,000). Remove points before adding more.";
+    return;
+  }
   const value = valueInput.valueAsNumber;
   if (!valueInput.value.trim() || !valueInput.validity.valid || !Number.isFinite(value)) {
     readout.textContent = "Enter a numeric calibration value before clicking the chart.";
@@ -335,6 +341,10 @@ function addCalibration(point) {
 }
 
 function addMeasurement(point) {
+  if (state.measurements.length >= MAX_POINTS) {
+    readout.textContent = "Measurement point limit reached (10,000). Export or remove points before adding more.";
+    return;
+  }
   checkpoint();
   state.measurements.push({
     id: createPointId(),
@@ -494,7 +504,7 @@ function updateLists() {
       appendRemoveButton(item, "calibration", point, index);
       calibrationList.append(item);
     });
-  
+
     renderedCalibration = { points: state.calibration, xFit, yFit };
   }
   if (!renderedMeasurements || renderedMeasurements.points !== state.measurements ||
@@ -566,8 +576,15 @@ function createProject(imageData) {
     const buffer = document.createElement("canvas");
     buffer.width = state.image.width;
     buffer.height = state.image.height;
-    buffer.getContext("2d").drawImage(state.image, 0, 0);
-    imageData = buffer.toDataURL("image/png");
+    try {
+      const bufferContext = buffer.getContext("2d");
+      if (!bufferContext) throw new Error("Canvas is unavailable.");
+      bufferContext.drawImage(state.image, 0, 0);
+      imageData = buffer.toDataURL("image/png");
+    } finally {
+      buffer.width = 0;
+      buffer.height = 0;
+    }
   }
   return {
     schemaVersion: 1,
@@ -592,7 +609,7 @@ function validateProject(project) {
       !Number.isSafeInteger(project.calibrationRevision) || project.calibrationRevision < 0) fail();
   const ids = new Set();
   const checkPoints = (points, calibration) => {
-    if (!Array.isArray(points) || points.length > 10000) fail();
+    if (!Array.isArray(points) || points.length > MAX_POINTS) fail();
     return points.map(point => {
       if (!point || typeof point.id !== "string" || !point.id || point.id.length > 200 || ids.has(point.id) ||
           !Number.isFinite(point.x) || point.x < 0 || point.x > image.width ||
@@ -619,9 +636,17 @@ function downloadFile(contents, type, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+function serializeProject(project) {
+  const contents = JSON.stringify(validateProject(project), null, 2);
+  if (new Blob([contents]).size > MAX_PROJECT_BYTES) {
+    throw new Error("Project exceeds the 64 MiB limit. Use a smaller chart image before saving.");
+  }
+  return contents;
+}
+
 document.querySelector("#saveProject").addEventListener("click", () => {
   try {
-    downloadFile(JSON.stringify(createProject(), null, 2), "application/json", "reverse-chart-project.json");
+    downloadFile(serializeProject(createProject()), "application/json", "reverse-chart-project.json");
   } catch (error) { readout.textContent = error.message; }
 });
 
@@ -633,7 +658,7 @@ document.querySelector("#openProject").addEventListener("change", async event =>
   const generation = ++projectReadGeneration;
   const imageGeneration = imageLoadGeneration;
   try {
-    if (file.size > 64 * 1024 * 1024) throw new Error("Project exceeds the 64 MiB file limit.");
+    if (file.size > MAX_PROJECT_BYTES) throw new Error("Project exceeds the 64 MiB file limit.");
     const project = validateProject(JSON.parse(await file.text()));
     if (generation !== projectReadGeneration || imageGeneration !== imageLoadGeneration) return;
     loadImage(project.image.data, project.image.name, false, project);

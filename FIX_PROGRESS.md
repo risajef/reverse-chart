@@ -19,3 +19,7 @@ Scope: findings in the 6 November 2026 review. Each fix is committed separately 
 | Regression checks and browser smoke | In progress | Dependency-free Node test harness added with fix 1. |
 
 Run checks with `node --test tests/*.test.cjs` and `node --check app.js`.
+
+## Project round-trip follow-up
+
+Save now enforces the same schema and 64 MiB limit as Open. Session point limits match the import limits, and temporary PNG-encoding canvas backing stores are released. Regression checks cover save validity/size failure and capture limits. This follow-up is committed separately from the original provenance fix.
