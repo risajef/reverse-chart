@@ -10,7 +10,7 @@ Scope: findings in the 6 November 2026 review. Each fix is committed separately 
 | 4. Invalid/incomplete CSV output | Done | Explicit X/Y/both selection; export rejects missing fits and invalid evaluated values; list identifies uncalibrated points. CSV regression cases pass. |
 | 5. Recalibration semantics and provenance | Done | Current-calibration semantics and revision visible; versioned project save/open embeds PNG, dimensions, scales and points; strict validation and round-trip CSV tests pass. |
 | 6. Point recovery and undo | Done | Remove by ID; bounded undo for point capture/removal, clear, scales, project/image replacement. Paste scoped to chart. Recovery and pending-load cancellation tests pass. |
-| 7. Image errors and resource limits | Pending | |
+| 7. Image errors and resource limits | Done | Persistent load status, decode errors, 32 MiB/16 MP/8192-side limits, backing-store preflight before commit, project dimension checks. Oversize/allocation failure tests preserve the prior session. |
 | 8. Repeated fits and rendering work | Pending | |
 | Measurement marker visibility | Pending | |
 | Accessibility | Pending | |

@@ -68,6 +68,7 @@ function refreshSession() {
   xScaleInput.value = state.scales.x;
   yScaleInput.value = state.scales.y;
   emptyState.style.display = state.image ? "none" : "";
+  imageStatus.textContent = state.image ? `${state.imageName}: ${state.image.width} × ${state.image.height} pixels.` : "No chart loaded.";
   sizeCanvas();
   updateLists();
   updateFitStatus();
@@ -117,12 +118,42 @@ function setMode(mode) {
   draw();
 }
 
+const imageStatus = document.querySelector("#imageStatus");
+const MAX_IMAGE_PIXELS = 16 * 1024 * 1024;
+const MAX_IMAGE_SIDE = 8192;
+const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
+
+function validImageDimensions(width, height) {
+  return Number.isSafeInteger(width) && Number.isSafeInteger(height) && width > 0 && height > 0 &&
+    width <= MAX_IMAGE_SIDE && height <= MAX_IMAGE_SIDE && width * height <= MAX_IMAGE_PIXELS;
+}
+
+function checkImageResources(image) {
+  if (!validImageDimensions(image.width, image.height)) {
+    throw new Error("Image exceeds 8192 pixels per side or 16 megapixels. Resize it before loading.");
+  }
+  // Verify the backing store before replacing the active document.
+  const probe = document.createElement("canvas");
+  probe.width = image.width;
+  probe.height = image.height;
+  try {
+    const probeContext = probe.getContext("2d");
+    if (!probeContext) throw new Error("Canvas is unavailable.");
+    probeContext.drawImage(image, 0, 0);
+    probeContext.getImageData(image.width - 1, image.height - 1, 1, 1);
+  } finally {
+    probe.width = 0;
+    probe.height = 0;
+  }
+}
+
 let imageLoadGeneration = 0;
 let cancelPendingImage = null;
 
 function loadImage(src, name, ownedUrl = false, project = null) {
   const generation = ++imageLoadGeneration;
   if (cancelPendingImage) cancelPendingImage();
+  imageStatus.textContent = `Loading ${name}…` ;
   const image = new Image();
   let released = false;
   const release = () => {
@@ -134,17 +165,25 @@ function loadImage(src, name, ownedUrl = false, project = null) {
     release();
     if (generation !== imageLoadGeneration) return;
     cancelPendingImage = null;
+    imageStatus.textContent = "Could not decode this image. The current chart is unchanged.";
     readout.textContent = "Could not load this image. The current chart is unchanged.";
   };
   image.onload = () => {
     release();
     if (generation !== imageLoadGeneration) return;
     cancelPendingImage = null;
+    try {
+      checkImageResources(image);
+    } catch (error) {
+      imageStatus.textContent = `Image not loaded: ${error.message}`;
+      return;
+    }
     if (project && (image.width !== project.image.width || image.height !== project.image.height)) {
-      readout.textContent = "Project image dimensions do not match its metadata.";
+      imageStatus.textContent = "Project image dimensions do not match its metadata.";
       return;
     }
     checkpoint();
+    imageStatus.textContent = `${name}: ${image.width} × ${image.height} pixels.`;
     state.image = image;
     state.imageName = name;
     state.calibration = project ? project.calibration : [];
@@ -164,7 +203,7 @@ function loadImage(src, name, ownedUrl = false, project = null) {
     updateFakeCursor(null);
     draw();
   };
-  image.src = src;
+  try { image.src = src; } catch { image.onerror(); }
 }
 
 function loadImageFile(file) {
@@ -173,6 +212,10 @@ function loadImageFile(file) {
     return;
   }
 
+  if (file.size > MAX_IMAGE_BYTES) {
+    imageStatus.textContent = "Image exceeds the 32 MiB file limit. Resize it before loading.";
+    return;
+  }
   loadImage(URL.createObjectURL(file), file.name || "Pasted image", true);
 }
 
@@ -519,6 +562,7 @@ function validateProject(project) {
   if (typeof image.name !== "string" || image.name.length > 4096 ||
       !Number.isSafeInteger(image.width) || image.width < 1 ||
       !Number.isSafeInteger(image.height) || image.height < 1 ||
+      !validImageDimensions(image.width, image.height) ||
       typeof image.data !== "string" || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(image.data)) fail();
   if (![project.scales.x, project.scales.y].every(scale => ["linear", "log"].includes(scale)) ||
       !Number.isSafeInteger(project.calibrationRevision) || project.calibrationRevision < 0) fail();
@@ -725,7 +769,8 @@ function getCssVar(name) {
 
 imageInput.addEventListener("change", (event) => {
   const [file] = event.target.files;
-  loadImageFile(file);
+  event.target.value = "";
+  if (file) loadImageFile(file);
 });
 
 chartFrame.addEventListener("paste", (event) => {

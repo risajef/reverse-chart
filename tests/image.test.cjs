@@ -25,3 +25,26 @@ test('a failed replacement retains the active chart and points', () => {
   assert.match(run('readout.textContent'), /Could not load/);
   assert.deepEqual(revoked, ['blob:broken']);
 });
+
+test('oversized files and images leave the active session intact', () => {
+  const {run, images} = app();
+  run(`state.image={width:100,height:100};state.imageName='active';
+    loadImageFile({type:'image/png',size:33*1024*1024,name:'large'});`);
+  assert.equal(images.length, 0);
+  assert.match(run('imageStatus.textContent'), /32 MiB/);
+  run(`loadImage('huge','huge');`);
+  Object.assign(images[0], {width:8192,height:8192});images[0].onload();
+  assert.equal(run('state.imageName'), 'active');
+  assert.match(run('imageStatus.textContent'), /16 megapixels/);
+  assert.equal(run('validImageDimensions(4096,4096)'), true);
+  assert.equal(run('validImageDimensions(0,10)'), false);
+});
+
+test('canvas allocation failure preserves the prior document', () => {
+  const {run, images} = app();
+  run(`state.imageName='active';var originalCreate=document.createElement;
+    document.createElement=()=>({getContext:()=>null});loadImage('candidate','candidate');`);
+  Object.assign(images[0], {width:100,height:100});images[0].onload();
+  assert.equal(run('state.imageName'), 'active');
+  assert.match(run('imageStatus.textContent'), /Canvas is unavailable/);
+});
