@@ -111,7 +111,9 @@ function appendRemoveButton(item, collection, point, index) {
 function setMode(mode) {
   state.mode = mode;
   calibrateMode.classList.toggle("active", mode === "calibrate");
+  calibrateMode.setAttribute("aria-pressed", String(mode === "calibrate"));
   measureMode.classList.toggle("active", mode === "measure");
+  measureMode.setAttribute("aria-pressed", String(mode === "measure"));
   calibrationControls.classList.toggle("hidden", mode !== "calibrate");
   measureControls.classList.toggle("hidden", mode !== "measure");
   updateReadout(state.hover);

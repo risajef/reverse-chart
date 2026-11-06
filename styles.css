@@ -352,3 +352,11 @@ canvas:focus-visible {
 
 .remove-point { margin-left: 0.5rem; }
 button:disabled { opacity: 0.55; cursor: default; }
+
+.file-picker:focus-within span,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}

@@ -13,7 +13,7 @@ Scope: findings in the 6 November 2026 review. Each fix is committed separately 
 | 7. Image errors and resource limits | Done | Persistent load status, decode errors, 32 MiB/16 MP/8192-side limits, backing-store preflight before commit, project dimension checks. Oversize/allocation failure tests preserve the prior session. |
 | 8. Repeated fits and rendering work | Done | Fits cached by calibration revision; lists refresh only when their inputs change; pointer bursts coalesce per animation frame; palette read once per draw. Instrumented reuse/render tests pass. |
 | Measurement marker visibility | Done | Captured markers render during hover; magnifier covers only its own circular region. Marker-render regression passes. |
-| Accessibility | Pending | |
+| Accessibility | Done | Mode pressed states, polite status regions, visible keyboard/paste instructions and canvas description/fallback; visible upload/project-input focus. Semantic mode test passes; browser checks follow below. |
 | Small-number display precision | Pending | |
 | Standalone documentation/theme | Pending | |
 | Regression checks and browser smoke | In progress | Dependency-free Node test harness added with fix 1. |
