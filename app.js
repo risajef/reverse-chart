@@ -166,8 +166,8 @@ function commitCursorPoint() {
 }
 
 function addCalibration(point) {
-  const value = Number(valueInput.value);
-  if (!Number.isFinite(value)) {
+  const value = valueInput.valueAsNumber;
+  if (!valueInput.value.trim() || !valueInput.validity.valid || !Number.isFinite(value)) {
     readout.textContent = "Enter a numeric calibration value before clicking the chart.";
     valueInput.focus();
     return;

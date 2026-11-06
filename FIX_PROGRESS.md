@@ -1,0 +1,21 @@
+# Reverse Chart fix progress
+
+Scope: findings in the 6 November 2026 review. Each fix is committed separately in this repository. Parent website sources, staged assets, and the parent submodule pointer are outside this work. No deployment or push is included.
+
+| Finding | Status | Verification |
+| --- | --- | --- |
+| 1. Blank calibration becomes zero | Done | Native input validity and `valueAsNumber`; regression covers blank, malformed, explicit zero, and log zero rejection. |
+| 2. Unusable fits reported as calibrated | Pending | |
+| 3. Stale image completion overwrites session | Pending | |
+| 4. Invalid/incomplete CSV output | Pending | |
+| 5. Recalibration semantics and provenance | Pending | |
+| 6. Point recovery and undo | Pending | |
+| 7. Image errors and resource limits | Pending | |
+| 8. Repeated fits and rendering work | Pending | |
+| Measurement marker visibility | Pending | |
+| Accessibility | Pending | |
+| Small-number display precision | Pending | |
+| Standalone documentation/theme | Pending | |
+| Regression checks and browser smoke | In progress | Dependency-free Node test harness added with fix 1. |
+
+Run checks with `node --test tests/*.test.cjs` and `node --check app.js`.
