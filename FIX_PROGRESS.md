@@ -5,7 +5,7 @@ Scope: findings in the 6 November 2026 review. Each fix is committed separately 
 | Finding | Status | Verification |
 | --- | --- | --- |
 | 1. Blank calibration becomes zero | Done | Native input validity and `valueAsNumber`; regression covers blank, malformed, explicit zero, and log zero rejection. |
-| 2. Unusable fits reported as calibrated | Pending | |
+| 2. Unusable fits reported as calibrated | Done | Pure centered regression, explicit fit/evaluation states, finite/range validation, residual diagnostics; linear/reversed/log/degenerate/extreme tests pass. |
 | 3. Stale image completion overwrites session | Pending | |
 | 4. Invalid/incomplete CSV output | Pending | |
 | 5. Recalibration semantics and provenance | Pending | |

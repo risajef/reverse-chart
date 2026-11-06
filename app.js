@@ -204,51 +204,83 @@ function addMeasurement(point) {
   draw();
 }
 
-function transformValue(axis, value) {
-  if (state.scales[axis] === "log") {
-    if (value <= 0) return null;
-    return Math.log10(value);
+// Pure numerical core: independent of the DOM and session state.
+function fitCalibration(calibration, axis, scale) {
+  const pixelKey = axis === "x" ? "x" : "y";
+  const selected = calibration.filter(point => point.axis === axis);
+  const points = selected.filter(point => Number.isFinite(point.value) &&
+    Number.isFinite(point[pixelKey]) && (scale !== "log" || point.value > 0));
+  const invalidCount = selected.length - points.length;
+  const failure = status => ({ status, count: points.length, invalidCount });
+  if (points.length < 2) return failure("insufficient-points");
+  const pixels = points.map(point => point[pixelKey]);
+  const values = points.map(point => scale === "log" ? Math.log10(point.value) : point.value);
+  const pixelOrigin = pixels[0];
+  const valueOrigin = values[0];
+  const meanPixel = pixels.reduce((sum, pixel) => sum + (pixel - pixelOrigin) / points.length, 0);
+  const meanValue = values.reduce((sum, value) => sum + (value - valueOrigin) / points.length, 0);
+  let variance = 0;
+  let covariance = 0;
+  for (let i = 0; i < points.length; i++) {
+    const dx = pixels[i] - pixelOrigin - meanPixel;
+    variance += dx * dx;
+    covariance += dx * (values[i] - valueOrigin - meanValue);
   }
-  return value;
+  if (variance < 1e-12) return failure("insufficient-pixel-span");
+  if (Math.max(...values) === Math.min(...values)) return failure("degenerate-value-range");
+  const slope = covariance / variance;
+  const centerPixel = pixelOrigin + meanPixel;
+  const centerValue = valueOrigin + meanValue;
+  const intercept = centerValue - slope * centerPixel;
+  const residuals = values.map((value, i) => value - (centerValue + slope * (pixels[i] - centerPixel)));
+  const maxResidual = Math.max(...residuals.map(Math.abs));
+  if (![slope, intercept, centerPixel, centerValue, maxResidual].every(Number.isFinite) || slope === 0) {
+    return failure("nonfinite-fit");
+  }
+  return { status: "ready", slope, intercept, centerPixel, centerValue,
+    count: points.length, invalidCount, maxResidual, scale };
 }
 
-function inverseTransformValue(axis, fittedValue) {
-  if (state.scales[axis] === "log") return 10 ** fittedValue;
-  return fittedValue;
+function evaluateFit(fit, pixel) {
+  if (fit.status !== "ready") return { status: fit.status, value: null };
+  const transformed = fit.centerValue + fit.slope * (pixel - fit.centerPixel);
+  const value = fit.scale === "log" ? 10 ** transformed : transformed;
+  if (!Number.isFinite(value) || (fit.scale === "log" && value <= 0)) {
+    return { status: "out-of-range", value: null };
+  }
+  return { status: "ready", value };
 }
 
 function fitAxis(axis) {
-  const points = state.calibration
-    .filter((point) => point.axis === axis)
-    .map((point) => ({
-      ...point,
-      fitValue: transformValue(axis, point.value),
-    }))
-    .filter((point) => point.fitValue !== null);
-  if (points.length < 2) return null;
+  return fitCalibration(state.calibration, axis, state.scales[axis]);
+}
 
-  const pixelKey = axis === "x" ? "x" : "y";
-  const n = points.length;
-  const sumPixel = points.reduce((sum, point) => sum + point[pixelKey], 0);
-  const sumValue = points.reduce((sum, point) => sum + point.fitValue, 0);
-  const sumPixelValue = points.reduce((sum, point) => sum + point[pixelKey] * point.fitValue, 0);
-  const sumPixelSquared = points.reduce((sum, point) => sum + point[pixelKey] * point[pixelKey], 0);
-  const denominator = n * sumPixelSquared - sumPixel * sumPixel;
-
-  if (Math.abs(denominator) < 0.000001) return null;
-
-  const slope = (n * sumPixelValue - sumPixel * sumValue) / denominator;
-  const intercept = (sumValue - slope * sumPixel) / n;
-  return { slope, intercept, count: points.length };
+function computeResults(point) {
+  return { x: evaluateFit(fitAxis("x"), point.x), y: evaluateFit(fitAxis("y"), point.y) };
 }
 
 function computeValues(point) {
-  const xFit = fitAxis("x");
-  const yFit = fitAxis("y");
-  return {
-    x: xFit ? inverseTransformValue("x", xFit.slope * point.x + xFit.intercept) : null,
-    y: yFit ? inverseTransformValue("y", yFit.slope * point.y + yFit.intercept) : null,
+  const result = computeResults(point);
+  return { x: result.x.value, y: result.y.value };
+}
+
+function fitMessage(axis, fit) {
+  const reasons = {
+    "insufficient-points": `needs ${Math.max(0, 2 - fit.count)} more valid points`,
+    "insufficient-pixel-span": "needs points at distinct pixel positions",
+    "degenerate-value-range": "needs distinct calibration values",
+    "nonfinite-fit": "has values outside the supported numeric range",
   };
+  const message = fit.status === "ready"
+    ? `calibrated from ${fit.count} points; max residual ${formatValue(fit.maxResidual)}${fit.scale === "log" ? " log10 units" : " axis units"}`
+    : reasons[fit.status];
+  return `${axis.toUpperCase()} ${formatScale(axis)} ${message}${fit.invalidCount ? `; ${fit.invalidCount} invalid points ignored` : ""}`;
+}
+
+function resultText(result, axis) {
+  if (result.status === "ready") return formatValue(result.value, axis);
+  if (result.status === "out-of-range") return "outside numeric range";
+  return "axis calibration required";
 }
 
 function formatPlainNumber(value, maximumFractionDigits = 12) {
@@ -289,30 +321,16 @@ function updateReadout(point) {
     return;
   }
 
-  const values = computeValues(point);
+  const results = computeResults(point);
   readout.innerHTML = `
     <strong>Pixel</strong> ${Math.round(point.x)}, ${Math.round(point.y)}<br>
-    <strong>X</strong> ${formatValue(values.x, "x")} (${formatScale("x")})<br>
-    <strong>Y</strong> ${formatValue(values.y, "y")} (${formatScale("y")})
+    <strong>X</strong> ${resultText(results.x, "x")} (${formatScale("x")})<br>
+    <strong>Y</strong> ${resultText(results.y, "y")} (${formatScale("y")})
   `;
 }
 
 function updateFitStatus() {
-  const xFit = fitAxis("x");
-  const yFit = fitAxis("y");
-  const xCount = state.calibration.filter((point) => point.axis === "x").length;
-  const yCount = state.calibration.filter((point) => point.axis === "y").length;
-  const invalidX = state.scales.x === "log" ? state.calibration.filter((point) => point.axis === "x" && point.value <= 0).length : 0;
-  const invalidY = state.scales.y === "log" ? state.calibration.filter((point) => point.axis === "y" && point.value <= 0).length : 0;
-
-  const xValid = xCount - invalidX;
-  const yValid = yCount - invalidY;
-  const xText = xFit ? `X ${formatScale("x")} calibrated from ${xFit.count} point${xFit.count === 1 ? "" : "s"}` : `X ${formatScale("x")} needs ${Math.max(0, 2 - xValid)} more valid point${2 - xValid === 1 ? "" : "s"}`;
-  const yText = yFit ? `Y ${formatScale("y")} calibrated from ${yFit.count} point${yFit.count === 1 ? "" : "s"}` : `Y ${formatScale("y")} needs ${Math.max(0, 2 - yValid)} more valid point${2 - yValid === 1 ? "" : "s"}`;
-  const invalidText = [invalidX ? `${invalidX} invalid X log value${invalidX === 1 ? "" : "s"}` : "", invalidY ? `${invalidY} invalid Y log value${invalidY === 1 ? "" : "s"}` : ""]
-    .filter(Boolean)
-    .join(". ");
-  fitStatus.textContent = `${xText}. ${yText}.${invalidText ? ` ${invalidText}.` : ""}`;
+  fitStatus.textContent = ["x", "y"].map(axis => fitMessage(axis, fitAxis(axis))).join(". ") + ".";
 }
 
 function updateLists() {
