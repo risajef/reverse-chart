@@ -52,7 +52,7 @@ node --test tests/*.test.cjs
 node --check app.js
 ```
 
-The test harness evaluates the actual application with minimal browser stubs; it does not replace real browser verification. See `FIX_PROGRESS.md` for the review findings and their implementation status.
+The test harness evaluates the actual application with minimal browser stubs; it does not replace real browser verification.
 
 For the tracked browser smoke test, use Node.js 22.12 or newer:
 
